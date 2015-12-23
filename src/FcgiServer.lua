@@ -36,9 +36,9 @@ function c:init_conf()
 end
 
 function c:usage()
-    return "how to use:\n"
-        .. "\tlocal FcgiServer = require \"src/FcgiServer\"\n"
-        .. "\tFcgiServer:new{ conf=\"conf.lua\" }"
+    return "how to use:"
+        .. "\n\tlocal FcgiServer = require \"src/FcgiServer\""
+        .. "\n\tFcgiServer:new{ conf=\"conf.lua\" }"
 end
 
 function c:panic( ... )
