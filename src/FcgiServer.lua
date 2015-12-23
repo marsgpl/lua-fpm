@@ -1,68 +1,34 @@
 --
 
-local class = require "class"
 local trace = require "trace"
+local class = require "class"
+local std = require "std"
 
-local Configurable = require "Configurable"
+local Panicable = require "Panicable"
+local Configurator = require "Configurator"
 
 --
 
 local c = class:FcgiServer {
     conf = false,
-}:extends{ Configurable }
+    lock = false,
+}:extends{ Panicable }
 
 --
 
 function c:init()
-    self:init_conf()
+    Panicable.init(self)
 
-    trace(self.conf)
-end
+    self.conf = Configurator:new{ data=self.conf }
 
-function c:init_conf()
-    local t = type(self.conf)
+    self:assert(self.conf:check())
 
-    if t == "string" then
-        -- conf is a file path to load the conf table from
-        self.conf = self:try_panic(self:load_conf(self.conf))
-    elseif t == "table" then
-        -- conf is already provided as table
-        -- do nothing
-    else
-        self:panic("bad initial params", self:usage())
+    if self.conf.data.lockfile then
+        self.lock = self:assert(std.lock(self.conf.data.lockfile))
     end
 
-    self:try_panic(self:check_conf())
-end
-
-function c:usage()
-    return "how to use:"
-        .. "\n\tFcgiServer:new{ conf=\"conf.lua\" }"
-end
-
-function c:panic( ... )
-    if trace.use_colors then
-        io.stderr:write(trace.color.string, "PANIC: ", trace.color.reset)
-    else
-        io.stderr:write("PANIC: ")
-    end
-
-    for i=1,select("#", ...) do
-        io.stderr:write((select(i, ...)))
-        io.stderr:write("\n")
-    end
-
-    io.stderr:flush()
-
-    os.exit(1)
-end
-
-function c:try_panic( r, ... )
-    if r then
-        return r, ...
-    else
-        self:panic(...)
-    end
+    print("ok")
+    std.sleep(60)
 end
 
 --

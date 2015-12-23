@@ -1,6 +1,10 @@
 --
 
 return {
-    a = 1,
-    b = "ok",
+    lockfile = "fcgi.lock",
+    listener = {
+        type = "unix",
+        path = "fcgi.sock",
+    },
+    processes = 4,
 }

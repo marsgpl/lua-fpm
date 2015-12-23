@@ -2,6 +2,6 @@
 
 package.path = "./src/?.lua;" .. package.path
 
-local FcgiServer = require "src/FcgiServer"
+local FcgiServer = require "FcgiServer"
 
 FcgiServer:new{ conf="conf.lua" }
