@@ -37,7 +37,6 @@ end
 
 function c:usage()
     return "how to use:"
-        .. "\n\tlocal FcgiServer = require \"src/FcgiServer\""
         .. "\n\tFcgiServer:new{ conf=\"conf.lua\" }"
 end
 
