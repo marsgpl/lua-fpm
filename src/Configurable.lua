@@ -1,6 +1,6 @@
 --
 
-local oop = require "oop"
+local class = require "class"
 
 --
 
@@ -9,7 +9,7 @@ local c = class:Configurable {
 
 --
 
-function c:load_conf()
+function c:load_conf( path )
     return { todo=true }
 end
 

@@ -2,4 +2,4 @@
 
 $ lua fcgi.lua
 
-conf in conf.lua
+conf.lua - settings

@@ -1,6 +1,6 @@
 --
 
-local oop = require "oop"
+local class = require "class"
 local trace = require "trace"
 
 local Configurable = require "Configurable"
@@ -8,12 +8,11 @@ local Configurable = require "Configurable"
 --
 
 local c = class:FcgiServer {
-    conf = false, -- string->load()->table or table. false - not initialized correctly
+    conf = false,
 }:extends{ Configurable }
 
 --
 
--- entry point (constructor)
 function c:init()
     self:init_conf()
 
@@ -24,8 +23,8 @@ function c:init_conf()
     local t = type(self.conf)
 
     if t == "string" then
-        -- we have a file path to load the conf table from
-        self.conf = self:try_panic(self:load_conf())
+        -- conf is a file path to load the conf table from
+        self.conf = self:try_panic(self:load_conf(self.conf))
     elseif t == "table" then
         -- conf is already provided as table
         -- do nothing
