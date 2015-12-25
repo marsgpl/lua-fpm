@@ -2,10 +2,10 @@
 
 local trace = require "trace"
 
-local class = require "class"
-local std = require "std"
-local zmq = require "zmq"
 local thread = require "thread"
+local class = require "class"
+local zmq = require "zmq"
+local std = require "std"
 
 local Panicable = require "Panicable"
 local Configurator = require "Configurator"
@@ -46,31 +46,25 @@ function c:init_zmq( conf )
 end
 
 function c:init_threads( conf )
-    local queues = {}
+    local t = self:assert(thread.start(conf.listener.file, {
+        addr = conf.listener.addr,
+        queue = conf.queue.addr,
+    }, { zmq.__get_ctx_mf() }))
 
-    for i,lconf in ipairs(conf.listeners) do
-        local queue = { addr="inproc://queue#"..i }
+    table.insert(self.threads, t)
 
-        table.insert(queues, queue)
-
-        local t = self:assert(thread.start(lconf.code, {
-            queue = queue,
-            addr = lconf.addr,
+    for i=1,conf.workers.amount do
+        local t = self:assert(thread.start(conf.workers.file, {
+            queue = conf.queue.addr,
         }, { zmq.__get_ctx_mf() }))
 
         table.insert(self.threads, t)
     end
-
-    trace(queues)
 end
 
--- TODO
 function c:monitor()
-    local n = 0
     while true do
-        std.sleep(.678)
-        n = n + 1
-        print("monitoring stage " .. n)
+        std.sleep(1)
     end
 end
 

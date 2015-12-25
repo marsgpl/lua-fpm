@@ -33,11 +33,13 @@ function c:load( path )
     local r, es
 
     r, es = loadfile(path, "bt")
+
     if not r then
         return false, es
     end
 
     r, es = pcall(r)
+
     if not r then
         return false, es
     elseif type(es) ~= "table" then
