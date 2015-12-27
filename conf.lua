@@ -1,22 +1,21 @@
 --
 
 return {
-    lockfile = "fcgi.lock",
-    zmq = {
-        max_sockets = 65536,
-        ipv6_enabled = false,
-    },
-    listener = {
+    lockfile = "/tmp/lua-fcgi.lock",
+    acceptor = {
         file = "src/threads/acceptor.lua",
-        addr = "tcp://127.0.0.1:12345",
-        --addr = "tcp://::1:12345",
-        --addr = "ipc:///home/pd/src/lua-fcgi/fcgi.sock",
+        addrs = {
+            { transport="ip4_tcp", interface="127.0.0.1", port=12345, backlog=128 },
+            { transport="ip6_tcp", interface="::1", port=12345, backlog=128 },
+            { transport="unix", path="/tmp/lua-fcgi.sock", mode=666, backlog=128 },
+        },
     },
     workers = {
         file = "src/threads/worker.lua",
         amount = 4,
+        queue = "inproc://tasks",
     },
-    queue = {
-        addr = "inproc://queue",
+    monitor = {
+        enabled = false,
     },
 }
