@@ -23,6 +23,7 @@ function c:init()
 
     self:init_zmq()
     self:init_queue(self.args)
+    self:say_to_acceptor_we_are_ready()
 
     self:process()
 end
@@ -32,8 +33,21 @@ function c:init_zmq()
 end
 
 function c:init_queue( conf )
-    self.queue = self:assert(self.zmqctx:socket(zmq.f.ZMQ_STREAM))
-    self:assert(self.queue:connect(conf.queue))
+    local sock = self:assert(self.zmqctx:socket(zmq.f.ZMQ_REQ))
+    local fd = sock:get(zmq.f.ZMQ_FD)
+
+    self:assert(sock:connect(conf.queue))
+
+    self.queue = {
+        fd = fd,
+        sock = sock,
+        can_read = true,
+        can_write = true,
+    }
+end
+
+function c:say_to_acceptor_we_are_ready()
+    trace(self.queue.sock:send("+", 1))
 end
 
 function c:process()
