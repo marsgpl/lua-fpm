@@ -40,6 +40,7 @@ function c:init_workers( conf )
     for i,data in ipairs(conf.workers) do
         local t = self:assert(thread.start(data.file, {
             listeners = data.listeners,
+            threads = data.threads,
         }))
 
         table.insert(self.workers, t)
