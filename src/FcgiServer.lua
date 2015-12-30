@@ -4,8 +4,8 @@ local class = require "class"
 local std = require "std"
 local thread = require "thread"
 
-local Panicable = require "Panicable"
-local Configurator = require "Configurator"
+local FcgiPanicable = require "FcgiPanicable"
+local FcgiConfigurator = require "FcgiConfigurator"
 
 --
 
@@ -13,12 +13,12 @@ local c = class:FcgiServer {
     conf = false,
     lock = false,
     workers = {},
-}:extends{ Panicable }
+}:extends{ FcgiPanicable }
 
 --
 
 function c:init()
-    Panicable.init(self)
+    FcgiPanicable.init(self)
 
     self:init_conf()
     self:init_lock(self.conf.data)
@@ -26,7 +26,7 @@ function c:init()
 end
 
 function c:init_conf()
-    self.conf = Configurator:new{ data=self.conf }
+    self.conf = FcgiConfigurator:new{ data=self.conf }
     self:assert(self.conf:check())
 end
 

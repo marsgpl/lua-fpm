@@ -1,6 +1,5 @@
 --
 
-local trace = require "trace"
 local class = require "class"
 local net = require "net"
 local fcgi = require "fcgi"
@@ -82,6 +81,10 @@ function c:process_write_buffer()
             break
         end
     end
+
+    if #self.buff_write == 0 and self.close_after_write then
+        self:e_onhup()
+    end
 end
 
 function c:process_read_buffer()
@@ -133,20 +136,46 @@ function c:process_read_buffer()
                 end
 
                 if request.params_ready and request.stdin_ready then
-                    local tid, t = self.worker:get_thread()
-                    assert(coroutine.resume(t, tid, t, request))
+                    local tid, t = self.worker.threads:pop()
+
+                    request.t = t
+                    request.tid = tid
+
+                    assert(coroutine.resume(t, request))
                 end
             end
         end
     end
 end
 
-function c:request_done( request, response )
+function c.process_request()
+    local self, request, response
+
+    while true do
+        request = coroutine.yield()
+        self = request.client
+
+        response = {
+            status = 200,
+            headers = {
+                ["Content-Type"] = "text/plain; charset=utf-8",
+            },
+            stdout = " tid: " .. request.tid .. "\n rid: " .. request.id .. "\n cfd: " .. self.fd .. "\n afd: " .. self.acceptor.fd .. "\n wid: " .. self.worker.id,
+            stderr = "",
+        }
+
+        self:complete_request(request, response)
+    end
+end
+
+function c:complete_request( request, response )
     if not request.keepalive then
         self.close_after_write = true
     end
 
     self.requests[request.id] = nil
+
+    self.worker.threads:push(request.tid, request.t)
 
     -- response.status, response.stdout, response.stderr
     self:send("\1\6\0\1\0005\3\0Content-type: text/html; charset=UTF-8\13\10\13\10hi from Lua\0\0\0\1\3\0\1\0\8\0\0\0\0\0\0\0\0\0\0")

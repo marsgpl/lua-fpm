@@ -4,7 +4,7 @@ local class = require "class"
 
 --
 
-local c = class:Configurator {
+local c = class:FcgiConfigurator {
     data = false,
 }
 

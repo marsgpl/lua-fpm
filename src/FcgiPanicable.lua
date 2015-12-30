@@ -4,7 +4,7 @@ local class = require "class"
 
 --
 
-local c = class:Panicable {
+local c = class:FcgiPanicable {
     use_colors = true,
     color = {
         panic = "\27[0;31m", -- red

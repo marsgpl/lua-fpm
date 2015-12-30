@@ -1,11 +1,12 @@
 --
 
-local trace = require "trace"
 local class = require "class"
 local net = require "net"
 
-local Panicable = require "Panicable"
+local FcgiPanicable = require "FcgiPanicable"
+local FcgiThreadPool = require "FcgiThreadPool"
 local FcgiSocketAcceptor = require "FcgiSocketAcceptor"
+local FcgiSocketClient = require "FcgiSocketClient"
 
 --
 
@@ -13,25 +14,34 @@ local c = class:FcgiWorker {
     id = false,
     args = false,
     epoll = false,
+    threads = false,
     sockets = {},
-    threads = {},
-    thread_next_id = 1,
-}:extends{ Panicable }
+}:extends{ FcgiPanicable }
 
 --
 
 function c:init()
-    Panicable.init(self)
+    FcgiPanicable.init(self)
 
     self:init_epoll()
-    self:init_listeners()
     self:init_threads()
+    self:init_listeners()
 
     self:process()
 end
 
 function c:init_epoll()
     self.epoll = self:assert(net.epoll())
+end
+
+function c:init_threads()
+    self.threads = FcgiThreadPool:new {
+        processor = FcgiSocketClient.process_request,
+        worker = self,
+        min = self.args.threads,
+    }
+
+    self:assert(pcall(self.threads.prepare, self.threads))
 end
 
 function c:init_listeners()
@@ -148,61 +158,6 @@ function c:process()
     end
 
     self.epoll:start(timeout, onread, onwrite, ontimeout, onerror, onhup)
-end
-
-function c:init_threads()
-    for i=1,self.args.threads do
-        self:add_thread()
-    end
-end
-
-function c:add_thread()
-    local tid = self.thread_next_id
-
-    if tid > self.args.threads then
-        print(tid)
-    end
-
-    self.thread_next_id = self.thread_next_id + 1
-
-    local t = coroutine.create(function()
-        local tid, t, request, response
-
-        while true do
-            tid, t, request = coroutine.yield()
-
-            response = {
-                status = 404,
-                stdout = "",
-                stderr = "TODO: load fucking files",
-            }
-
-            request.client:request_done(request, response)
-            request.client.worker:put_thread(tid, t)
-        end
-    end)
-
-    self:assert(coroutine.resume(t))
-
-    self.threads[tid] = t
-
-    return tid, t
-end
-
-function c:get_thread()
-    local tid, t = next(self.threads)
-
-    if not tid then
-        tid, t = self:add_thread()
-    end
-
-    self.threads[tid] = nil
-
-    return tid, t
-end
-
-function c:put_thread( tid, t )
-    self.threads[tid] = t
 end
 
 --

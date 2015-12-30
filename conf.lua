@@ -8,31 +8,31 @@ return {
     workers = {
         {
             file = "worker.lua",
-            threads = 500,
             listeners = {
                 { transport="unix", path="/tmp/lua-fcgi-1.sock", mode=666, backlog=128 },
             },
+            threads = 128,
         },
         {
             file = "worker.lua",
-            threads = 500,
             listeners = {
                 { transport="unix", path="/tmp/lua-fcgi-2.sock", mode=666, backlog=128 },
             },
+            threads = 128,
         },
         {
             file = "worker.lua",
-            threads = 500,
             listeners = {
                 { transport="unix", path="/tmp/lua-fcgi-3.sock", mode=666, backlog=128 },
             },
+            threads = 128,
         },
         {
             file = "worker.lua",
-            threads = 500,
             listeners = {
                 { transport="unix", path="/tmp/lua-fcgi-4.sock", mode=666, backlog=128 },
             },
+            threads = 128,
         },
     },
 }
