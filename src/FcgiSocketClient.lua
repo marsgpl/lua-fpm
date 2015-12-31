@@ -1,5 +1,6 @@
 --
 
+local trace = require "trace"
 local class = require "class"
 local net = require "net"
 local fcgi = require "fcgi"
@@ -98,54 +99,58 @@ function c:process_read_buffer()
 
     if packets then
         for _,p in ipairs(packets) do
-            if p.id then
-                if not self.requests[p.id] then
-                    self.requests[p.id] = {
-                        client = self,
-                        id = p.id,
-                        params = {},
-                        stdin = "",
-                        params_ready = false,
-                        stdin_ready = false,
-                    }
-                end
+            if not self.requests[p.id] then
+                self.requests[p.id] = {
+                    client = self,
+                    id = p.id,
+                    params = {},
+                    stdin = "",
+                    params_ready = false,
+                    stdin_ready = false,
+                }
+            end
 
-                local request = self.requests[p.id]
+            local request = self.requests[p.id]
 
-                if p.type == fcgi.f.FCGI_BEGIN_REQUEST then
-                    request.role = p.role
-                    request.keepalive = p.keepalive
-                elseif p.type == fcgi.f.FCGI_STDIN then
-                    if p.body then
-                        request.stdin = request.stdin .. p.body
-                    else
-                        request.stdin_ready = true
-                    end
-                elseif p.type == fcgi.f.FCGI_PARAMS then
-                    if p.params then
-                        if request.params then
-                            for k,v in pairs(p.params) do
-                                request.params[k] = v
-                            end
-                        else
-                            request.params = p.params
+            if p.type == fcgi.f.FCGI_BEGIN_REQUEST then
+                request.role = p.role
+                request.keepalive = p.keepalive
+            elseif p.type == fcgi.f.FCGI_ABORT_REQUEST then
+                request.aborted = true
+            elseif p.type == fcgi.f.FCGI_PARAMS then
+                if p.params then
+                    if request.params then
+                        for k,v in pairs(p.params) do
+                            request.params[k] = v
                         end
                     else
-                        request.params_ready = true
+                        request.params = p.params
                     end
+                else
+                    request.params_ready = true
                 end
-
-                if request.params_ready and request.stdin_ready then
-                    local tid, t = self.worker.threads:pop()
-
-                    request.t = t
-                    request.tid = tid
-
-                    assert(coroutine.resume(t, request))
+            elseif p.type == fcgi.f.FCGI_STDIN then
+                if p.body then
+                    request.stdin = request.stdin .. p.body
+                else
+                    request.stdin_ready = true
                 end
             end
-        end
-    end
+
+            if request.aborted then
+                if request.t then -- abort
+                    -- TODO
+                end
+            elseif request.params_ready and request.stdin_ready then
+                local tid, t = self.worker.threads:pop()
+
+                request.t = t
+                request.tid = tid
+
+                assert(coroutine.resume(t, request))
+            end
+        end -- for
+    end -- if packets
 end
 
 function c.process_request()
@@ -157,10 +162,7 @@ function c.process_request()
 
         response = {
             status = 200,
-            headers = {
-                ["Content-Type"] = "text/plain; charset=utf-8",
-            },
-            stdout = " tid: " .. request.tid .. "\n rid: " .. request.id .. "\n cfd: " .. self.fd .. "\n afd: " .. self.acceptor.fd .. "\n wid: " .. self.worker.id,
+            stdout = "Content-Type: text/plain; charset=utf-8\r\n\r\n tid: " .. request.tid .. "\n rid: " .. request.id .. "\n cfd: " .. self.fd .. "\n afd: " .. self.acceptor.fd .. "\n wid: " .. self.worker.id,
             stderr = "",
         }
 
@@ -177,8 +179,42 @@ function c:complete_request( request, response )
 
     self.worker.threads:push(request.tid, request.t)
 
-    -- response.status, response.stdout, response.stderr
-    self:send("\1\6\0\1\0005\3\0Content-type: text/html; charset=UTF-8\13\10\13\10hi from Lua\0\0\0\1\3\0\1\0\8\0\0\0\0\0\0\0\0\0\0")
+    local packets = {}
+
+    if #response.stdout > 0 then
+        table.insert(packets, fcgi.pack {
+            id = request.id,
+            type = fcgi.f.FCGI_STDOUT,
+            body = response.stdout,
+        })
+    end
+
+    table.insert(packets, fcgi.pack {
+        id = request.id,
+        type = fcgi.f.FCGI_STDOUT,
+    })
+
+    if #response.stderr > 0 then
+        table.insert(packets, fcgi.pack {
+            id = request.id,
+            type = fcgi.f.FCGI_STDERR,
+            body = response.stderr,
+        })
+
+        table.insert(packets, fcgi.pack {
+            id = request.id,
+            type = fcgi.f.FCGI_STDERR,
+        })
+    end
+
+    table.insert(packets, fcgi.pack {
+        id = request.id,
+        type = fcgi.f.FCGI_END_REQUEST,
+        app_status = 0,
+        protocol_status = fcgi.f.FCGI_REQUEST_COMPLETE,
+    })
+
+    self:send(table.concat(packets))
 end
 
 --
