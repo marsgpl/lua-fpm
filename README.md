@@ -1,5 +1,5 @@
 ## lua-FcgiServer
 
-$ lua fcgid.lua
+$ lua fpm.lua
 
 conf.lua - settings
