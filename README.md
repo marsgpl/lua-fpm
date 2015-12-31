@@ -1,4 +1,4 @@
-## lua-FcgiServer
+## lua-fpm
 
 $ lua fpm.lua
 
