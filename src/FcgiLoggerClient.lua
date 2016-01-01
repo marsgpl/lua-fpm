@@ -1,0 +1,82 @@
+--
+
+local class = require "class"
+local zmq = require "zmq"
+
+local FcgiSocket = require "FcgiSocket"
+local FcgiPanicable = require "FcgiPanicable"
+
+--
+
+local c = class:FcgiLoggerClient {
+    title = false,
+    addr = false,
+    zmq = false,
+    buff_write = {},
+    can_write = true,
+}:extends{ FcgiPanicable, FcgiSocket }
+
+--
+
+function c:init()
+    self:init_zmq()
+end
+
+function c:init_zmq()
+    self.zmq = {}
+
+    self.zmq.ctx = self:assert(zmq.context())
+    self.zmq.sock = self:assert(self.zmq.ctx:socket(zmq.f.ZMQ_PUSH))
+
+    self:assert(self.zmq.sock:connect(self.addr))
+end
+
+function c:fd()
+    return self.zmq.sock:get(zmq.f.ZMQ_FD)
+end
+
+function c:error( msg )
+    table.insert(self.buff_write, { "error", msg })
+    self:process_write_buffer()
+end
+
+function c:warn( msg )
+    table.insert(self.buff_write, { "warn", msg })
+    self:process_write_buffer()
+end
+
+function c:debug( msg )
+    table.insert(self.buff_write, { "debug", msg })
+    self:process_write_buffer()
+end
+
+function c:log( msg )
+    table.insert(self.buff_write, { "", msg })
+    self:process_write_buffer()
+end
+
+function c:e_onwrite()
+    self.can_write = true
+    self:process_write_buffer()
+end
+
+function c:process_write_buffer()
+    local task, r
+
+    while self.zmq.sock and self.can_write and #self.buff_write > 0 do
+        task = table.remove(self.buff_write, 1)
+
+        r = self.zmq.sock:send(self.title, 1, 1)
+            and self.zmq.sock:send(task[1], 1, 1)
+            and self.zmq.sock:send(task[2], 1)
+
+        if not r then
+            self.can_write = false
+            table.insert(self.buff_write, task)
+        end
+    end
+end
+
+--
+
+return c

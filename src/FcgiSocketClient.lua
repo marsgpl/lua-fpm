@@ -1,6 +1,5 @@
 --
 
-local trace = require "trace"
 local class = require "class"
 local net = require "net"
 local fcgi = require "fcgi"
@@ -157,13 +156,24 @@ end
 
 function c.process_request()
     local self, request, response
-    local file, r, headers, stdout
+    local file
 
     while true do
         request = coroutine.yield()
         self = request.client
 
-        file = self.worker:load_file_code(tostring(request.params.LUA_ROOT) .. tostring(request.params.LUA_FILE))
+        self.worker.logger:log("received request")
+
+        trace(request.params, request.stdin)
+
+
+
+        if not request.params.LUA_PATH then
+            response = self.worker:build_response_error(400, "fastcgi_param LUA_PATH")
+        else
+        end
+
+        file = self.worker:prepare_file(request.params.LUA_PATH)
 
         if file.chunk then
             r, headers, stdout = pcall(file.chunk)

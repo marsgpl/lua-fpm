@@ -1,6 +1,5 @@
 --
 
-local trace = require "trace"
 local class = require "class"
 local net = require "net"
 
@@ -8,6 +7,7 @@ local FcgiPanicable = require "FcgiPanicable"
 local FcgiThreadPool = require "FcgiThreadPool"
 local FcgiSocketAcceptor = require "FcgiSocketAcceptor"
 local FcgiSocketClient = require "FcgiSocketClient"
+local FcgiLoggerClient = require "FcgiLoggerClient"
 
 --
 
@@ -16,6 +16,7 @@ local c = class:FcgiWorker {
     args = false,
     epoll = false,
     threads = false,
+    logger = false,
     sockets = {},
     files = {},
 }:extends{ FcgiPanicable }
@@ -28,25 +29,46 @@ function c:init()
     self:init_epoll()
     self:init_threads()
     self:init_listeners()
+    self:init_logger()
 
     self:process()
 end
 
-function c:cleanup_callback( cb )
-    assert(self.epoll:unwatch(cb.fd))
+function c:init_logger()
+    if self.args.log.enabled then
+        self.logger = FcgiLoggerClient:new {
+            title = class.name(self) .. " #" .. self.id,
+            addr = self.args.log.addr,
+        }
+
+        self.sockets[self.logger:fd()] = self.logger
+
+        self:assert(self.epoll:watch(self.logger:fd(), net.f.EPOLLET | net.f.EPOLLRDHUP | net.f.EPOLLOUT))
+    end
 end
 
-function c:load_file_code( filepath )
-    if self.args.debug.auto_reload_files or not self.files[filepath] then
-        local env = {
-            require = require,
+function c:cleanup_callback( cb )
+    assert(self.epoll:unwatch(cb.fd), "cleanup_callback unwatch failed")
+end
+
+function c:prepare_lua_file( file )
+print "TODO prepare_file"
+os.exit(1)
+    if not root or not name then
+        return {
+            error = "LUA_ROOT or LUA_FILE are missing",
         }
-        local r, es, en = loadfile(filepath, "bt", env)
+    end
+
+
+    if self.args.debug.auto_reload_files or not self.files[filepath] then
+        local r, es, en = loadfile(filepath, "bt", {
+            require = require,
+        })
 
         if r then
             self.files[filepath] = {
                 chunk = r,
-                env = env,
             }
         else
             self.files[filepath] = {
@@ -75,8 +97,8 @@ end
 function c:rewatch_listeners()
     for fd, s in pairs(self.sockets) do
         if class.name(s) == "FcgiSocketAcceptor" then
-            assert(self.epoll:unwatch(fd))
-            assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
+            assert(self.epoll:unwatch(fd), "rewatch_listeners unwatch failed")
+            assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN), "rewatch_listeners watch failed")
             s:e_onread()
         end
     end
@@ -187,7 +209,7 @@ function c:process()
                 obj:e_onerror(es, en)
             end
         else -- lua error
-            print("onerror: lua:", es, en)
+            this.logger:error("lua: " .. tostring(es))
         end
     end
 

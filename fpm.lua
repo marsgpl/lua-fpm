@@ -7,4 +7,4 @@ local FcgiServer = require "FcgiServer"
 
 assert(std.strict())
 
-FcgiServer:new{ conf="conf.lua" }
+FcgiServer:new{ conf=(arg[1] or "conf.lua") }
