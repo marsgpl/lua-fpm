@@ -1,5 +1,6 @@
 --
 
+local trace = require "trace"
 local class = require "class"
 local net = require "net"
 
@@ -16,6 +17,7 @@ local c = class:FcgiWorker {
     epoll = false,
     threads = false,
     sockets = {},
+    files = {},
 }:extends{ FcgiPanicable }
 
 --
@@ -30,6 +32,32 @@ function c:init()
     self:process()
 end
 
+function c:cleanup_callback( cb )
+    assert(self.epoll:unwatch(cb.fd))
+end
+
+function c:load_file_code( filepath )
+    if self.args.debug.auto_reload_files or not self.files[filepath] then
+        local env = {
+            require = require,
+        }
+        local r, es, en = loadfile(filepath, "bt", env)
+
+        if r then
+            self.files[filepath] = {
+                chunk = r,
+                env = env,
+            }
+        else
+            self.files[filepath] = {
+                error = es,
+            }
+        end
+    end
+
+    return self.files[filepath]
+end
+
 function c:init_epoll()
     self.epoll = self:assert(net.epoll())
 end
@@ -42,6 +70,16 @@ function c:init_threads()
     }
 
     self:assert(pcall(self.threads.prepare, self.threads))
+end
+
+function c:rewatch_listeners()
+    for fd, s in pairs(self.sockets) do
+        if class.name(s) == "FcgiSocketAcceptor" then
+            assert(self.epoll:unwatch(fd))
+            assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
+            s:e_onread()
+        end
+    end
 end
 
 function c:init_listeners()
@@ -119,7 +157,7 @@ end
 function c:process()
     local this = self
 
-    local timeout = -1
+    local timeout = 500
 
     local onread = function( fd )
         local obj = this.sockets[fd]
@@ -154,7 +192,7 @@ function c:process()
     end
 
     local ontimeout = function()
-        error("this func shall never be called with infinite timeout")
+        this:rewatch_listeners()
     end
 
     self.epoll:start(timeout, onread, onwrite, ontimeout, onerror, onhup)

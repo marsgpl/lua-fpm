@@ -9,31 +9,34 @@ return {
     workers = {
         {
             file = "worker.lua",
-            threads = 64,
+            threads = 128,
             listeners = {
-                { transport="unix", path="/tmp/lua-fpm-1.sock", mode=666, backlog=64 },
+                { transport="unix", path="/tmp/lua-fpm-1.sock", mode=666, backlog=512 },
             },
         },
         {
             file = "worker.lua",
-            threads = 64,
+            threads = 128,
             listeners = {
-                { transport="unix", path="/tmp/lua-fpm-2.sock", mode=666, backlog=64 },
+                { transport="unix", path="/tmp/lua-fpm-2.sock", mode=666, backlog=512 },
             },
         },
         {
             file = "worker.lua",
-            threads = 64,
+            threads = 128,
             listeners = {
-                { transport="unix", path="/tmp/lua-fpm-3.sock", mode=666, backlog=64 },
+                { transport="unix", path="/tmp/lua-fpm-3.sock", mode=666, backlog=512 },
             },
         },
         {
             file = "worker.lua",
-            threads = 64,
+            threads = 128,
             listeners = {
-                { transport="unix", path="/tmp/lua-fpm-4.sock", mode=666, backlog=64 },
+                { transport="unix", path="/tmp/lua-fpm-4.sock", mode=666, backlog=512 },
             },
         },
+    },
+    debug = {
+        auto_reload_files = true,
     },
 }

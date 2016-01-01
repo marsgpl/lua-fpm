@@ -52,6 +52,14 @@ function c:e_onhup()
         self.sock = false
         self.buff_write = ""
         self.worker.sockets[self.fd] = nil
+
+        for id, r in pairs(self.requests) do
+            if r.callback then
+                self.worker:cleanup_callback(r.callback)
+            end
+        end
+
+        self.requests = {}
     end
 end
 
@@ -115,8 +123,6 @@ function c:process_read_buffer()
             if p.type == fcgi.f.FCGI_BEGIN_REQUEST then
                 request.role = p.role
                 request.keepalive = p.keepalive
-            elseif p.type == fcgi.f.FCGI_ABORT_REQUEST then
-                request.aborted = true
             elseif p.type == fcgi.f.FCGI_PARAMS then
                 if p.params then
                     if request.params then
@@ -137,11 +143,7 @@ function c:process_read_buffer()
                 end
             end
 
-            if request.aborted then
-                if request.t then -- abort
-                    -- TODO
-                end
-            elseif request.params_ready and request.stdin_ready then
+            if request.params_ready and request.stdin_ready then
                 local tid, t = self.worker.threads:pop()
 
                 request.t = t
@@ -155,16 +157,45 @@ end
 
 function c.process_request()
     local self, request, response
+    local file, r, headers, stdout
 
     while true do
         request = coroutine.yield()
         self = request.client
 
+        file = self.worker:load_file_code(tostring(request.params.LUA_ROOT) .. tostring(request.params.LUA_FILE))
+
+        if file.chunk then
+            r, headers, stdout = pcall(file.chunk)
+
+            if r then
+                response = {
+                    status = 200,
+                    stderr = "",
+                    stdout = table.concat(headers, "\r\n") .. "\r\n\r\n" .. tostring(stdout),
+                }
+            else
+                response = {
+                    status = 500,
+                    stderr = headers,
+                    stdout = "",
+                }
+            end
+        else
+            response = {
+                status = 404,
+                stderr = file.error,
+                stdout = "",
+            }
+        end
+
+        --[[
         response = {
-            status = 200,
+            status = 404,
             stdout = "Content-Type: text/plain; charset=utf-8\r\n\r\n tid: " .. request.tid .. "\n rid: " .. request.id .. "\n cfd: " .. self.fd .. "\n afd: " .. self.acceptor.fd .. "\n wid: " .. self.worker.id,
             stderr = "",
         }
+        --]]
 
         self:complete_request(request, response)
     end

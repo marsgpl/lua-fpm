@@ -41,6 +41,7 @@ function c:init_workers( conf )
         local t = self:assert(thread.start(data.file, {
             listeners = data.listeners,
             threads = data.threads,
+            debug = conf.debug,
         }))
 
         table.insert(self.workers, t)
