@@ -1,19 +1,19 @@
-pd wrk Ⴥ ./wrk -c400 -d120s -t8 --latency 'http://localhost:8090/lua/test.lua?a=1&b=lol#wtf'
-Running 2m test @ http://localhost:8090/lua/test.lua?a=1&b=lol#wtf
+pd wrk Ⴥ ./wrk -c400 -d7200s -t8 --latency 'http://localhost:8090/lua/test.lua?a=1&b=lol#wtf'
+Running 120m test @ http://localhost:8090/lua/test.lua?a=1&b=lol#wtf
   8 threads and 400 connections
-  Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    77.37ms  228.05ms   2.00s    91.19%
-    Req/Sec     7.74k   840.03    16.59k    76.77%
+^C  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    62.63ms  203.04ms   2.00s    92.33%
+    Req/Sec     7.93k   737.29    18.24k    70.66%
   Latency Distribution
-     50%    5.47ms
-     75%   10.03ms
-     90%  240.30ms
-     99%    1.18s
-  7393760 requests in 2.00m, 1.32GB read
-  Socket errors: connect 0, read 0, write 0, timeout 551
-  Non-2xx or 3xx responses: 42
-Requests/sec:  61572.92
-Transfer/sec:     11.27MB
+     50%    5.32ms
+     75%    9.18ms
+     90%  128.57ms
+     99%    1.09s
+  120359857 requests in 31.80m, 21.52GB read
+  Socket errors: connect 0, read 0, write 0, timeout 11425
+  Non-2xx or 3xx responses: 3836
+Requests/sec:  63084.81
+Transfer/sec:     11.55MB
 
 
 
