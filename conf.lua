@@ -37,6 +37,6 @@ return {
         },
     },
     debug = {
-        auto_reload_files = true,
+        auto_reload_files = false,
     },
 }
