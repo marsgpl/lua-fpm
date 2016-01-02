@@ -2,6 +2,7 @@
 
 local class = require "class"
 local zmq = require "zmq"
+local std = require "std"
 
 local FcgiSocket = require "FcgiSocket"
 local FcgiPanicable = require "FcgiPanicable"
@@ -35,23 +36,23 @@ function c:fd()
     return self.zmq.sock:get(zmq.f.ZMQ_FD)
 end
 
-function c:error( msg )
-    table.insert(self.buff_write, { "error", msg })
+function c:error( ... )
+    table.insert(self.buff_write, { "error", std.concat("", ...) })
     self:process_write_buffer()
 end
 
-function c:warn( msg )
-    table.insert(self.buff_write, { "warn", msg })
+function c:warn( ... )
+    table.insert(self.buff_write, { "warn", std.concat("", ...) })
     self:process_write_buffer()
 end
 
-function c:debug( msg )
-    table.insert(self.buff_write, { "debug", msg })
+function c:debug( ... )
+    table.insert(self.buff_write, { "debug", std.concat("", ...) })
     self:process_write_buffer()
 end
 
-function c:log( msg )
-    table.insert(self.buff_write, { "", msg })
+function c:log( ... )
+    table.insert(self.buff_write, { "", std.concat("", ...) })
     self:process_write_buffer()
 end
 

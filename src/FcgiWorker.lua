@@ -52,32 +52,44 @@ function c:cleanup_callback( cb )
 end
 
 function c:prepare_lua_file( file )
-print "TODO prepare_file"
-os.exit(1)
-    if not root or not name then
-        return {
-            error = "LUA_ROOT or LUA_FILE are missing",
-        }
+    if not file then
+        return false, "prepare_lua_file: file is not a string (fastcgi_param LUA_PATH)", 500
     end
 
+    local f = self.files[file]
+    local fu
 
-    if self.args.debug.auto_reload_files or not self.files[filepath] then
-        local r, es, en = loadfile(filepath, "bt", {
+    if self.args.debug.auto_reload_files or not f then
+        local r, es = loadfile(file, "bt", {
             require = require,
         })
 
         if r then
-            self.files[filepath] = {
-                chunk = r,
-            }
+            r, fu = pcall(r)
+
+            if r and type(fu)=="function" then
+                f = {
+                    chunk = fu,
+                }
+            else
+                f = {
+                    error = "prepare_lua_file: pcall: " .. (es or "must return a function"),
+                }
+            end
         else
-            self.files[filepath] = {
-                error = es,
+            f = {
+                error = "prepare_lua_file: loadfile: " .. es,
             }
         end
+
+        self.files[file] = f
     end
 
-    return self.files[filepath]
+    if f.chunk then
+        return f.chunk
+    else
+        return false, f.error, 500
+    end
 end
 
 function c:init_epoll()
@@ -209,7 +221,9 @@ function c:process()
                 obj:e_onerror(es, en)
             end
         else -- lua error
-            this.logger:error("lua: " .. tostring(es))
+            if this.logger then
+                this.logger:error("lua: " .. tostring(es))
+            end
         end
     end
 

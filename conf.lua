@@ -16,6 +16,7 @@ return {
     debug = {
         auto_reload_files = true,
         log_stdout = true,
+        show_errors = true,
     },
     workers = {
         {

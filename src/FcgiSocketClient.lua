@@ -155,60 +155,81 @@ function c:process_read_buffer()
 end
 
 function c.process_request()
-    local self, request, response
-    local file
+    local self, request, response, r, es, en, chunk, headers, stdout
 
     while true do
         request = coroutine.yield()
         self = request.client
 
-        self.worker.logger:log("received request")
+        chunk, es, en = self.worker:prepare_lua_file(request.params.LUA_PATH)
 
-        trace(request.params, request.stdin)
+        if not chunk then
+            if self.worker.logger then
+                self.worker.logger:error(es, "; en: ", en)
+            end
 
-
-
-        if not request.params.LUA_PATH then
-            response = self.worker:build_response_error(400, "fastcgi_param LUA_PATH")
+            response = self:build_response_error(en, es)
         else
-        end
+            if self.worker.logger then
+                self.worker.logger:log("file: ", request.params.LUA_PATH, (#request.stdin > 0 and "; args: "..request.stdin or ""))
+            end
 
-        file = self.worker:prepare_file(request.params.LUA_PATH)
-
-        if file.chunk then
-            r, headers, stdout = pcall(file.chunk)
+            r, headers, stdout = pcall(chunk, request)
 
             if r then
-                response = {
-                    status = 200,
-                    stderr = "",
-                    stdout = table.concat(headers, "\r\n") .. "\r\n\r\n" .. tostring(stdout),
-                }
-            else
-                response = {
-                    status = 500,
-                    stderr = headers,
-                    stdout = "",
-                }
-            end
-        else
-            response = {
-                status = 404,
-                stderr = file.error,
-                stdout = "",
-            }
-        end
+                if type(headers)=="table" and type(stdout)=="string" then
+                    response = self:build_response_success(200, headers, stdout)
+                else
+                    if self.worker.logger then
+                        self.worker.logger:error("runtime: " .. (headers or "process_request: chunk pcall: must return (table, string)"))
+                    end
 
-        --[[
-        response = {
-            status = 404,
-            stdout = "Content-Type: text/plain; charset=utf-8\r\n\r\n tid: " .. request.tid .. "\n rid: " .. request.id .. "\n cfd: " .. self.fd .. "\n afd: " .. self.acceptor.fd .. "\n wid: " .. self.worker.id,
-            stderr = "",
-        }
-        --]]
+                    response = self:build_response_error(500, "process_request: chunk pcall: must return (table, string)")
+                end
+            else
+                if self.worker.logger then
+                    self.worker.logger:error("runtime: ", headers)
+                end
+
+                response = self:build_response_error(500, es)
+            end
+        end
 
         self:complete_request(request, response)
     end
+end
+
+function c:build_response_error( status, stderr )
+    if self.worker.args.debug.show_errors then
+        return {
+            stdout = "Status: " .. status .. "\r\nContent-Length: "..(#stderr+7).."\r\n\r\nError: "..stderr,
+            stderr = stderr,
+        }
+    else
+        return {
+            stdout = "Status: " .. status .. "\r\nContent-Length: 5\r\n\r\nError",
+            stderr = stderr,
+        }
+    end
+end
+
+function c:build_response_success( status, headers, stdout )
+    if headers[1] and headers[1]:sub(1,7):lower() ~= "status:" then
+        table.insert(headers, 1, "Status: " .. status)
+    end
+
+    table.insert(headers, "Content-Length: " .. #stdout)
+
+    if headers[#headers] ~= "" then
+        table.insert(headers, "")
+    end
+
+    table.insert(headers, stdout)
+
+    return {
+        stdout = table.concat(headers, "\r\n"),
+        stderr = "",
+    }
 end
 
 function c:complete_request( request, response )
