@@ -181,7 +181,7 @@ function c.process_request()
                     response = self:build_response_success(200, headers, stdout)
                 else
                     if self.worker.logger then
-                        self.worker.logger:error("runtime: " .. (headers or "process_request: chunk pcall: must return (table, string)"))
+                        self.worker.logger:error("runtime: " .. (not r and headers or "process_request: chunk pcall: must return (table, string)"))
                     end
 
                     response = self:build_response_error(500, "process_request: chunk pcall: must return (table, string)")
@@ -191,7 +191,7 @@ function c.process_request()
                     self.worker.logger:error("runtime: ", headers)
                 end
 
-                response = self:build_response_error(500, es)
+                response = self:build_response_error(500, headers)
             end
         end
 

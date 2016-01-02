@@ -8,15 +8,15 @@ return {
     lockfile = "/tmp/lua-fpm.lock",
     max_open_files = 4096,
     log = {
-        enabled = true,
+        enabled = false,
         code = "logger.lua",
         file = "/tmp/lua-fpm.log",
         addr = "inproc://logger",
     },
     debug = {
-        auto_reload_files = true,
-        log_stdout = true,
-        show_errors = true,
+        auto_reload_files = false,
+        log_stdout = false,
+        show_errors = false,
     },
     workers = {
         {
