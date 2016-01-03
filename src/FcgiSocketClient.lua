@@ -161,7 +161,7 @@ function c.process_request()
         request = coroutine.yield()
         self = request.client
 
-        chunk, es, en = self.worker:prepare_lua_file(request.params.LUA_PATH)
+        chunk, es, en = self.worker:prepare_lua_file(request.params.LUA_PATH, request.params.LUA_ARGS)
 
         if not chunk then
             if self.worker.logger then
@@ -171,7 +171,7 @@ function c.process_request()
             response = self:build_response_error(en, es)
         else
             if self.worker.logger then
-                self.worker.logger:log("file: ", request.params.LUA_PATH, (#request.stdin > 0 and "; args: "..request.stdin or ""))
+                self.worker.logger:log("file: ", request.params.LUA_PATH, (#request.params.LUA_ARGS > 0 and "; args: "..request.params.LUA_ARGS or ""))
             end
 
             r, headers, stdout = pcall(chunk, request)

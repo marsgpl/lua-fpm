@@ -2,6 +2,7 @@
 
 local class = require "class"
 local net = require "net"
+local std = require "std"
 
 local FcgiPanicable = require "FcgiPanicable"
 local FcgiThreadPool = require "FcgiThreadPool"
@@ -28,8 +29,8 @@ function c:init()
 
     self:init_epoll()
     self:init_threads()
-    self:init_listeners()
     self:init_logger()
+    self:init_listeners()
 
     self:process()
 end
@@ -51,18 +52,20 @@ function c:cleanup_callback( cb )
     assert(self.epoll:unwatch(cb.fd), "cleanup_callback unwatch failed")
 end
 
-function c:prepare_lua_file( file )
+function c:prepare_lua_file( file, args )
     if not file then
         return false, "prepare_lua_file: file is not a string (fastcgi_param LUA_PATH)", 500
     end
 
+    if not args then
+        return false, "prepare_lua_file: args are not a string (fastcgi_param LUA_ARGS)", 500
+    end
+
     local f = self.files[file]
-    local fu
+    local fu, r ,es, env
 
     if self.args.debug.auto_reload_files or not f then
-        local r, es = loadfile(file, "bt", {
-            require = require,
-        })
+        r, es = loadfile(file, "bt", _G)
 
         if r then
             r, fu = pcall(r)
@@ -73,7 +76,7 @@ function c:prepare_lua_file( file )
                 }
             else
                 f = {
-                    error = "prepare_lua_file: pcall: " .. (es or "must return a function"),
+                    error = "prepare_lua_file: pcall: " .. (fu or "must return a function"),
                 }
             end
         else
@@ -137,6 +140,10 @@ function c:init_transport__ip4_tcp( conf )
 
     self:assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
 
+    if self.logger then
+        self.logger:log("listening ", conf.interface, ":", math.tointeger(conf.port))
+    end
+
     local obj = FcgiSocketAcceptor:new {
         fd = fd,
         sock = sock,
@@ -157,6 +164,10 @@ function c:init_transport__ip6_tcp( conf )
 
     self:assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
 
+    if self.logger then
+        self.logger:log("listening ", conf.interface, ":", math.tointeger(conf.port))
+    end
+
     local obj = FcgiSocketAcceptor:new {
         fd = fd,
         sock = sock,
@@ -176,6 +187,10 @@ function c:init_transport__unix( conf )
     self:assert(sock:listen(conf.backlog))
 
     self:assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
+
+    if self.logger then
+        self.logger:log("listening ", conf.path, ", chmod ", math.tointeger(conf.mode))
+    end
 
     local obj = FcgiSocketAcceptor:new {
         fd = fd,
