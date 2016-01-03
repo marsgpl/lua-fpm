@@ -62,7 +62,7 @@ function c:e_onwrite()
 end
 
 function c:process_write_buffer()
-    local task, r
+    local r, task
 
     while self.zmq.sock and self.can_write and #self.buff_write > 0 do
         r, task = next(self.buff_write)
