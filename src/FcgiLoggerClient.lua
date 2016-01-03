@@ -65,7 +65,7 @@ function c:process_write_buffer()
     local task, r
 
     while self.zmq.sock and self.can_write and #self.buff_write > 0 do
-        task = table.remove(self.buff_write, 1)
+        task = next(self.buff_write)
 
         r = self.zmq.sock:send(self.title, 1, 1)
             and self.zmq.sock:send(task[1], 1, 1)
@@ -73,7 +73,8 @@ function c:process_write_buffer()
 
         if not r then
             self.can_write = false
-            table.insert(self.buff_write, task)
+        else
+            table.remove(self.buff_write, 1)
         end
     end
 end
