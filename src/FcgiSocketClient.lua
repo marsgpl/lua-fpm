@@ -47,18 +47,8 @@ end
 
 function c:e_onhup()
     if self.sock then
+        self.worker.static_epollrem(self.fd)
         self.sock:close()
-        self.sock = false
-        self.buff_write = ""
-        self.worker.sockets[self.fd] = nil
-
-        for id, r in pairs(self.requests) do
-            if r.callback then
-                self.worker:cleanup_callback(r.callback)
-            end
-        end
-
-        self.requests = {}
     end
 end
 
@@ -171,17 +161,32 @@ function c.process_request()
             response = self:build_response_error(en, es)
         else
             if self.worker.logger then
-                self.worker.logger:log("file: ", request.params.LUA_PATH, (#request.params.LUA_ARGS > 0 and "; args: "..request.params.LUA_ARGS or ""))
+                self.worker.logger:log("file: ", request.params.LUA_PATH,
+                    (#request.params.LUA_ARGS > 0 and "; args: " .. request.params.LUA_ARGS or ""),
+                    (#request.stdin > 0 and "; #post: ".. #request.stdin or "")
+                )
             end
 
-            r, headers, stdout = pcall(chunk, request)
+            r, headers, stdout = pcall(chunk, {
+                params = request.params,
+                path = request.params.LUA_PATH,
+                get = request.params.LUA_ARGS,
+                post = request.stdin,
+                server = {
+                    epolladd = self.worker.static_epolladd,
+                    epollrem = self.worker.static_epollrem,
+                    logger = self.worker.logger,
+                },
+            })
 
             if r then
                 if type(headers)=="table" and type(stdout)=="string" then
                     response = self:build_response_success(200, headers, stdout)
                 else
                     if self.worker.logger then
-                        self.worker.logger:error("runtime: " .. (not r and headers or "process_request: chunk pcall: must return (table, string)"))
+                        self.worker.logger:error("runtime: ",
+                            (not r and headers or "process_request: chunk pcall: must return (table, string)")
+                        )
                     end
 
                     response = self:build_response_error(500, "process_request: chunk pcall: must return (table, string)")
@@ -202,7 +207,7 @@ end
 function c:build_response_error( status, stderr )
     if self.worker.args.debug.show_errors then
         return {
-            stdout = "Status: " .. status .. "\r\nContent-Length: "..(#stderr+7).."\r\n\r\nError: "..stderr,
+            stdout = "Status: " .. status .. "\r\nContent-Length: " .. (#stderr+7) .. "\r\n\r\nError: " .. stderr,
             stderr = stderr,
         }
     else

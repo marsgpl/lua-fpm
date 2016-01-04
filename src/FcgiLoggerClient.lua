@@ -4,7 +4,6 @@ local class = require "class"
 local zmq = require "zmq"
 local std = require "std"
 
-local FcgiSocket = require "FcgiSocket"
 local FcgiPanicable = require "FcgiPanicable"
 
 --
@@ -15,7 +14,7 @@ local c = class:FcgiLoggerClient {
     zmq = false,
     buff_write = {},
     can_write = true,
-}:extends{ FcgiPanicable, FcgiSocket }
+}:extends{ FcgiPanicable }
 
 --
 

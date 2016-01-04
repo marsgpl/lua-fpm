@@ -20,12 +20,18 @@ local c = class:FcgiWorker {
     logger = false,
     sockets = {},
     files = {},
+
+    static_epolladd = false,
+    static_epollrem = false,
 }:extends{ FcgiPanicable }
 
 --
 
 function c:init()
     FcgiPanicable.init(self)
+
+    self:get_static_epolladd()
+    self:get_static_epollrem()
 
     self:init_epoll()
     self:init_threads()
@@ -42,14 +48,8 @@ function c:init_logger()
             addr = self.args.log.addr,
         }
 
-        self.sockets[self.logger:fd()] = self.logger
-
-        self:assert(self.epoll:watch(self.logger:fd(), net.f.EPOLLET | net.f.EPOLLRDHUP | net.f.EPOLLOUT))
+        self:assert(self.static_epolladd(self.logger:fd(), self.logger))
     end
-end
-
-function c:cleanup_callback( cb )
-    assert(self.epoll:unwatch(cb.fd), "cleanup_callback unwatch failed")
 end
 
 function c:prepare_lua_file( file, args )
@@ -134,15 +134,13 @@ end
 function c:init_transport__ip4_tcp( conf )
     local sock, fd = self:assert(net.ip4.tcp.socket(1))
 
-    self:assert(sock:set(net.f.SO_REUSEADDR, 1))
-    self:assert(sock:bind(conf.interface, conf.port))
-    self:assert(sock:listen(conf.backlog))
-
-    self:assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
-
     if self.logger then
         self.logger:log("listening ", conf.interface, ":", math.tointeger(conf.port))
     end
+
+    self:assert(sock:set(net.f.SO_REUSEADDR, 1))
+    self:assert(sock:bind(conf.interface, conf.port))
+    self:assert(sock:listen(conf.backlog))
 
     local obj = FcgiSocketAcceptor:new {
         fd = fd,
@@ -150,7 +148,7 @@ function c:init_transport__ip4_tcp( conf )
         worker = self,
     }
 
-    self.sockets[fd] = obj
+    self:assert(self.static_epolladd(fd, obj))
 
     obj:e_onread()
 end
@@ -158,15 +156,13 @@ end
 function c:init_transport__ip6_tcp( conf )
     local sock, fd = self:assert(net.ip6.tcp.socket(1))
 
-    self:assert(sock:set(net.f.SO_REUSEADDR, 1))
-    self:assert(sock:bind(conf.interface, conf.port))
-    self:assert(sock:listen(conf.backlog))
-
-    self:assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
-
     if self.logger then
         self.logger:log("listening ", conf.interface, ":", math.tointeger(conf.port))
     end
+
+    self:assert(sock:set(net.f.SO_REUSEADDR, 1))
+    self:assert(sock:bind(conf.interface, conf.port))
+    self:assert(sock:listen(conf.backlog))
 
     local obj = FcgiSocketAcceptor:new {
         fd = fd,
@@ -174,7 +170,7 @@ function c:init_transport__ip6_tcp( conf )
         worker = self,
     }
 
-    self.sockets[fd] = obj
+    self:assert(self.static_epolladd(fd, obj))
 
     obj:e_onread()
 end
@@ -182,15 +178,13 @@ end
 function c:init_transport__unix( conf )
     local sock, fd = self:assert(net.unix.socket(1))
 
-    os.remove(conf.path)
-    self:assert(sock:bind(conf.path, conf.mode))
-    self:assert(sock:listen(conf.backlog))
-
-    self:assert(self.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLIN))
-
     if self.logger then
         self.logger:log("listening ", conf.path, ", chmod ", math.tointeger(conf.mode))
     end
+
+    os.remove(conf.path)
+    self:assert(sock:bind(conf.path, conf.mode))
+    self:assert(sock:listen(conf.backlog))
 
     local obj = FcgiSocketAcceptor:new {
         fd = fd,
@@ -198,33 +192,35 @@ function c:init_transport__unix( conf )
         worker = self,
     }
 
-    self.sockets[fd] = obj
+    self:assert(self.static_epolladd(fd, obj))
 
     obj:e_onread()
 end
 
 function c:process()
     local this = self
-
     local timeout = 500
 
     local onread = function( fd )
         local obj = this.sockets[fd]
-        if obj then
+
+        if obj and obj.e_onread then
             obj:e_onread()
         end
     end
 
     local onwrite = function( fd )
         local obj = this.sockets[fd]
-        if obj then
+
+        if obj and obj.e_onwrite then
             obj:e_onwrite()
         end
     end
 
     local onhup = function( fd )
         local obj = this.sockets[fd]
-        if obj then
+
+        if obj and obj.e_onhup then
             obj:e_onhup()
         end
     end
@@ -232,12 +228,15 @@ function c:process()
     local onerror = function( fd, es, en )
         if fd then -- socket error
             local obj = this.sockets[fd]
-            if obj then
+
+            if obj and obj.e_onerror then
                 obj:e_onerror(es, en)
             end
+
+            this.static_epollrem(fd)
         else -- lua error
             if this.logger then
-                this.logger:error("lua: " .. tostring(es))
+                this.logger:error("lua: ", tostring(es))
             end
         end
     end
@@ -247,6 +246,50 @@ function c:process()
     end
 
     self.epoll:start(timeout, onread, onwrite, ontimeout, onerror, onhup)
+end
+
+function c:get_static_epolladd()
+    local this = self
+
+    if not this.static_epolladd then
+        this.static_epolladd = function( fd, obj )
+            local fread = obj.e_onread and net.f.EPOLLIN or 0
+            local fwrite = obj.e_onwrite and net.f.EPOLLOUT or 0
+            local fhup = obj.e_onhup and net.f.EPOLLRDHUP or 0
+
+            if fread+fwrite+fhup == 0 then
+                return nil, "specify at least one listening option"
+            end
+
+            local r, es = this.epoll:watch(fd, net.f.EPOLLET | fread | fwrite | fhup)
+
+            if r then
+                this.sockets[fd] = obj
+                return r
+            else
+                return r, es
+            end
+        end
+    end
+
+    return this.static_epolladd
+end
+
+function c:get_static_epollrem()
+    local this = self
+
+    if not this.static_epollrem then
+        this.static_epollrem = function( fd )
+            if this.sockets[fd] then
+                this.epoll:unwatch(fd)
+                this.sockets[fd] = nil
+            end
+
+            return true
+        end
+    end
+
+    return this.static_epollrem
 end
 
 --

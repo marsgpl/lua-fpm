@@ -1,1 +1,1 @@
-conf.development.lua
+etc/conf.development.lua

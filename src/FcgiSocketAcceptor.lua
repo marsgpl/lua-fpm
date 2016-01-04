@@ -21,8 +21,6 @@ function c:e_onread()
             break
         end
 
-        assert(self.worker.epoll:watch(fd, net.f.EPOLLET | net.f.EPOLLRDHUP | net.f.EPOLLIN | net.f.EPOLLOUT))
-
         local obj = FcgiSocketClient:new {
             fd = fd,
             sock = sock,
@@ -30,7 +28,7 @@ function c:e_onread()
             acceptor = self,
         }
 
-        self.worker.sockets[fd] = obj
+        assert(self.worker.static_epolladd(fd, obj))
 
         obj:e_onread()
     end
