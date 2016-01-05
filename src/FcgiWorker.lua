@@ -19,7 +19,7 @@ local c = class:FcgiWorker {
     logger = false,
     sockets = {},
     files = {},
-    services = {},
+    exchange = {},
 
     static_epolladd = false,
     static_epollrem = false,
@@ -37,8 +37,18 @@ function c:init()
     self:init_threads()
     self:init_logger()
     self:init_listeners()
+    self:init_exchange()
 
     self:process()
+end
+
+function c:init_exchange()
+    self.exchange = {
+        epolladd = self.static_epolladd,
+        epollrem = self.static_epollrem,
+        logger = self.logger,
+        services = {},
+    }
 end
 
 function c:init_logger()

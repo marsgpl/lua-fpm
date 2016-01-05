@@ -174,12 +174,7 @@ function c.process_request()
                 path = request.params.LUA_PATH,
                 get = request.params.LUA_ARGS,
                 post = request.stdin,
-                server = {
-                    epolladd = self.worker.static_epolladd,
-                    epollrem = self.worker.static_epollrem,
-                    logger = self.worker.logger,
-                    services = self.worker.services,
-                },
+                server = self.worker.exchange,
             })
 
             trace.use_colors = true
