@@ -2,7 +2,6 @@
 
 local class = require "class"
 local net = require "net"
-local std = require "std"
 
 local FcgiPanicable = require "FcgiPanicable"
 local FcgiThreadPool = require "FcgiThreadPool"
@@ -20,6 +19,7 @@ local c = class:FcgiWorker {
     logger = false,
     sockets = {},
     files = {},
+    services = {},
 
     static_epolladd = false,
     static_epollrem = false,
@@ -52,6 +52,15 @@ function c:init_logger()
     end
 end
 
+function c:create_lua_env()
+    local env = {}
+
+    setmetatable(env, { __index=_G })
+    env._G = env
+
+    return env
+end
+
 function c:prepare_lua_file( file, args )
     if not file then
         return false, "prepare_lua_file: file is not a string (fastcgi_param LUA_PATH)", 500
@@ -62,10 +71,10 @@ function c:prepare_lua_file( file, args )
     end
 
     local f = self.files[file]
-    local fu, r ,es, env
+    local r, es, fu
 
     if self.args.debug.auto_reload_files or not f then
-        r, es = loadfile(file, "bt", _G)
+        r, es = loadfile(file, "bt", self:create_lua_env())
 
         if r then
             r, fu = pcall(r)

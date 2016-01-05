@@ -167,6 +167,8 @@ function c.process_request()
                 )
             end
 
+            trace.use_colors = false
+
             r, headers, stdout = pcall(chunk, {
                 params = request.params,
                 path = request.params.LUA_PATH,
@@ -176,8 +178,11 @@ function c.process_request()
                     epolladd = self.worker.static_epolladd,
                     epollrem = self.worker.static_epollrem,
                     logger = self.worker.logger,
+                    services = self.worker.services,
                 },
             })
+
+            trace.use_colors = true
 
             if r then
                 if type(headers)=="table" and type(stdout)=="string" then
