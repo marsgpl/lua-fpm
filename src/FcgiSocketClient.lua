@@ -175,6 +175,10 @@ function c.process_request()
                 get = request.params.LUA_ARGS,
                 post = request.stdin,
                 server = self.worker.exchange,
+                client = {
+                    t = request.t,
+                    tid = request.tid,
+                },
             })
 
             trace.use_colors = true
